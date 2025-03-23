@@ -5,6 +5,11 @@ import { uploadJSONToStoracha } from '../services/storacha.js';
 import { addChunkToIndex, querySimilarChunks } from '../services/vectorstore.js';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import multer from 'multer';
+import pdfParse from 'pdf-parse';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const cheerio = require('cheerio');import fs from 'fs';
 
 dotenv.config();
 
@@ -14,9 +19,56 @@ const router = express.Router();
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
 const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
 
-// ✅ Upload and index a file
-router.post('/upload', async (req, res) => {
-  const chunks = chunkText('./data/knowledge.txt', 3000);
+// Set up multer for file uploads
+const upload = multer({ dest: 'uploads/' });
+
+// ✅ Upload and index text, PDF, or URL
+router.post('/upload', upload.single('file'), async (req, res) => {
+  const { type } = req.body;
+  let text;
+
+  // Handle different input types
+  if (type === 'text') {
+    if (!req.body.content) {
+      return res.status(400).json({ error: 'Content is required for type "text"' });
+    }
+    text = req.body.content;
+  } else if (type === 'pdf') {
+    if (!req.file) {
+      return res.status(400).json({ error: 'File is required for type "pdf"' });
+    }
+    try {
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const pdfData = await pdfParse(dataBuffer);
+      text = pdfData.text;
+      // Clean up temporary file
+      fs.unlinkSync(req.file.path);
+    } catch (err) {
+      console.error('Error processing PDF:', err);
+      return res.status(500).json({ error: 'Failed to process PDF' });
+    }
+  } 
+  else if (type === 'url') {
+    if (!req.body.url) {
+      return res.status(400).json({ error: 'URL is required for type "url"' });
+    }
+    const url = req.body.url;
+    try {
+      const response = await axios.get(url, { timeout: 10000 }); // 10-second timeout
+      const html = response.data;
+      const $ = cheerio.load(html);
+      text = $('body').text().replace(/\s+/g, ' ').trim();
+    } catch (err) {
+      console.error('Error fetching URL:', err);
+      return res.status(500).json({ error: 'Failed to fetch content from URL' });
+    }
+  } 
+  else {
+    return res.status(400).json({ error: 'Invalid type. Must be "text", "pdf", or "url"' });
+  }
+
+  // Process the text: chunk, embed, upload, and index
+  const chunks = chunkText(text, 3000);
   const results = [];
 
   for (let i = 0; i < chunks.length; i++) {

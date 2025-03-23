@@ -1,8 +1,5 @@
-import fs from 'fs';
-
-export function chunkText(filePath, chunkSize = 500) {
-  const raw = fs.readFileSync(filePath, 'utf-8');
-  const sentences = raw.match(/[^\.!\?]+[\.!\?]+/g) || [raw];
+export function chunkText(text, chunkSize = 500) {
+  const sentences = text.match(/[^\.!\?]+[\.!\?]+/g) || [text];
   const chunks = [];
 
   let current = '';
