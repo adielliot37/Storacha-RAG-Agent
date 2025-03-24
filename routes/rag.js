@@ -85,8 +85,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   res.json({ uploaded: results });
 });
 
-// 🔍 Query and get answer from Mistral
-// 🔍 Query and get answer from Mistral
+
 router.post('/query', async (req, res) => {
   const { question } = req.body;
 
@@ -109,13 +108,19 @@ router.post('/query', async (req, res) => {
       ];
 
       for (const url of gateways) {
-        try {
-          const file = await axios.get(url, { timeout: 7000 });
-          return file.data;
-        } catch (err) {
-          console.warn(`❌ Failed to fetch from: ${url}`);
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const file = await axios.get(url, { timeout: 9000 }); // wait up to 9s
+            return file.data;
+          } catch (err) {
+            console.warn(`❌ Attempt ${attempt} failed for: ${url}`);
+            if (attempt < 3) {
+              await new Promise(res => setTimeout(res, 2000)); // wait 2s before retry
+            }
+          }
         }
       }
+      
 
       return null;
     })
