@@ -20,10 +20,12 @@ const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
 const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 // Set up multer for file uploads
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ storage: multer.memoryStorage() });
+
 
 // ✅ Upload and index text, PDF, or URL
 router.post('/upload', upload.single('file'), async (req, res) => {
+  console.log("Upload route triggered at", new Date().toISOString());
   const { type } = req.body;
   let text;
 
@@ -38,11 +40,13 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'File is required for type "pdf"' });
     }
     try {
-      const dataBuffer = fs.readFileSync(req.file.path);
-      const pdfData = await pdfParse(dataBuffer);
+      const dataBuffer = req.file.buffer;
+     const pdfData = await pdfParse(dataBuffer);
+
       text = pdfData.text;
       // Clean up temporary file
-      fs.unlinkSync(req.file.path);
+     
+      
     } catch (err) {
       console.error('Error processing PDF:', err);
       return res.status(500).json({ error: 'Failed to process PDF' });
@@ -54,7 +58,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
     const url = req.body.url;
     try {
-      const response = await axios.get(url, { timeout: 10000 }); // 10-second timeout
+      const response = await axios.get(url, { timeout: 20000 }); // 10-second timeout
       const html = response.data;
       const $ = cheerio.load(html);
       text = $('body').text().replace(/\s+/g, ' ').trim();
@@ -68,7 +72,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 
   // Process the text: chunk, embed, upload, and index
-  const chunks = chunkText(text, 5000);
+  const chunks = chunkText(text, 8000);
   const results = [];
 
   for (let i = 0; i < chunks.length; i++) {

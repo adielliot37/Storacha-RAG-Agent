@@ -4,6 +4,7 @@ import base64
 import os
 from dotenv import load_dotenv
 import requests
+import time
 
 # Load environment variables
 load_dotenv()
@@ -92,20 +93,40 @@ with st.sidebar:
         # PDF upload
         pdf_file = st.file_uploader("Upload PDF", type=["pdf"])
         if pdf_file:
+            progress_text = st.empty()
+            progress_bar = st.progress(0)
+
             try:
+                progress_text.text("Step 1: Preparing file...")
+                # No delay needed if reading directly
+                time.sleep(0.5)
+                progress_bar.progress(20)
+
+                progress_text.text("Step 2: Uploading PDF...")
                 files = {"file": (pdf_file.name, pdf_file.getvalue(), "application/pdf")}
                 data = {"type": "pdf"}
                 response = requests.post(
                     "http://localhost:3000/rag/upload",
                     files=files,
-                    data=data
+                    data=data,
+                    timeout=600  # adjust timeout as needed
                 )
+                progress_bar.progress(80)
+                progress_text.text("Step 3: Waiting for response...")
+                time.sleep(0.5)  # Simulate time for processing
+
                 if response.status_code == 200:
-                    st.success("PDF uploaded successfully")
+                    st.success("PDF uploaded successfully!")
+                    progress_text.text("Processing complete.")
                 else:
                     st.error(f"Failed to upload PDF: {response.text}")
+                    progress_text.text("Error during upload.")
             except Exception as e:
                 st.error(f"Error uploading PDF: {str(e)}")
+                progress_text.text("Upload failed.")
+            
+            progress_bar.progress(100)
+
 
 
 # Display chat history
