@@ -16,7 +16,7 @@ from telegram.ext import (
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Put in your .env
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") 
 API_URL = "http://localhost:3000/rag"
 
 UPLOAD_TYPE, AWAITING_INPUT = range(2)
@@ -61,6 +61,7 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     upload_type = state["type"]
+    file_path = None  # Initialize file_path variable
 
     try:
         msg = await update.message.reply_text("⏳ Uploading...")
@@ -71,9 +72,19 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             res = requests.post(f"{API_URL}/upload", json={"type": "url", "url": update.message.text})
         elif upload_type == "pdf":
             file = await update.message.document.get_file()
-            file_path = await file.download_to_drive()
-            with open(file_path, "rb") as f:
-                res = requests.post(f"{API_URL}/upload", files={"file": (file_path, f, "application/pdf")}, data={"type": "pdf"})
+            file_path = await file.download_to_drive()  # Store file_path
+
+            with open(str(file_path), "rb") as f:
+                res = requests.post(
+                    f"{API_URL}/upload",
+                    files={"file": (str(file_path), f, "application/pdf")},
+                    data={"type": "pdf"}
+                )
+            
+            # Delete the PDF file after upload
+            if os.path.exists(str(file_path)):
+                os.remove(str(file_path))
+                logging.info(f"Deleted temporary file: {file_path}")
 
         if res.status_code == 200:
             await msg.edit_text("✅ Upload successful!")
@@ -82,6 +93,10 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logging.error(e)
+    
+        if file_path and os.path.exists(str(file_path)):
+            os.remove(str(file_path))
+            logging.info(f"Deleted temporary file after error: {file_path}")
         await update.message.reply_text(f"⚠️ Error: {str(e)}")
 
     return ConversationHandler.END
