@@ -72,7 +72,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 
   // Process the text: chunk, embed, upload, and index
-  const chunks = chunkText(text, 8000);
+  const chunks = chunkText(text, 12000);
   const results = [];
 
   for (let i = 0; i < chunks.length; i++) {
